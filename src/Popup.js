@@ -4,7 +4,7 @@
 import gatherAllIcon from './icons/gather_all.svg';
 import closeIcon from './icons/close.svg';
 import infoIcon from './icons/info.svg';
-import './App.css';
+import './Popup.css';
 // import testData from "./testData.json"
 import { useCallback, useEffect, useState } from 'react';
 
@@ -82,7 +82,7 @@ function TabList(props) {
   );
 }
 
-function App() {
+function Popup() {
 
   const [tabCount, setTabCount] = useState(0)
   const [windowCount, setWindowCount] = useState(0)
@@ -133,13 +133,13 @@ function App() {
   }, [])
 
   return (
-    <div className="App">
-      <header className="App-header">
+    <div className="Popup">
+      <header className="Popup-header">
         <div className="Result-counts">
         {tabCount} tab{tabCount > 1 ? "s" : ""}, {windowCount} window{windowCount > 1 ? "s" : ""}
         </div>
         <div>
-          <input type="image" className="App-button-icon"
+          <input type="image" className="Popup-button-icon"
           title="Gather result tabs to this window" alt="G"
           src={gatherAllIcon}
           />
@@ -157,4 +157,4 @@ function App() {
   );
 }
 
-export default App;
+export default Popup;

@@ -1,6 +1,34 @@
 console.log("background script ran!")
 
 // Database Model
+// This approach avoids the read/mod/write model since it creates race
+// conditions with chrome.storage.local and the chrome browser events.
+// The "#" sign means the tab or window number.
+//
+// The only required background script data model is the last activated
+// and created info, the rest could be handled by the popup window.
+//
+// Tab info is stored as its chrome event type, with the most recent
+// data stored.
+// tab#: TabInfo(Chrome)
+//
+// Last activated info.
+// act#: {
+//      lastActivated: int,
+//      info: ActivatedInfo(Chrome)
+// }
+//
+// Tab created timestamp.
+// tabcreated#: {
+//      created: int
+// }
+//
+// Window info.
+// win#: WindowInfo(Chrome)
+//
+// The active window ID.
+// activeWindowId: Number
+
 // tabs: {tabId: TabData}
 // TabData: {
 //      tabInfo: TabInfo(Chrome),
@@ -243,7 +271,7 @@ chrome.windows.onRemoved.addListener(async (windowId) => {
 chrome.windows.onFocusChanged.addListener(async (windowId) => {
     console.log("window.onFocusChanged called @ " + Date.now())
     console.log(windowId)
-    browser.storage.local.set({"activeWindowId": windowId}).then((data) => {
+    browser.storage.local.set({"activeWindowId": windowId}).then(() => {
         console.log(`Wrote windowId ${windowId}`)
     })
 })
