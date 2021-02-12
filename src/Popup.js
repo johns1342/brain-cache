@@ -6,6 +6,7 @@ import closeIcon from './icons/close.svg';
 import infoIcon from './icons/info.svg';
 import './Popup.css';
 // import testData from "./testData.json"
+import { IDTimeline } from "./idtimeline"
 import { useCallback, useEffect, useState } from 'react';
 
 function TabButtons(props) {
@@ -52,7 +53,7 @@ function TabButtons(props) {
 function TabLine(props) {
   console.log("props:")
   console.log(props)
-  const tab = props.tab.tabInfo
+  const tab = props.tab.info
   let favIconUrl = null
   console.log("TabLine:")
   console.log(tab)
@@ -82,6 +83,15 @@ function TabList(props) {
   );
 }
 
+var DefaultObjectKey = {
+  get: (target, key) => {
+    if (!target.hasOwnProperty(key)) {
+      target[key] = {}
+    }
+    return target[key]
+  }
+}
+
 function Popup() {
 
   const [tabCount, setTabCount] = useState(0)
@@ -90,33 +100,33 @@ function Popup() {
   const [tabData, setTabData] = useState({})
   const [activeWindowId, setActiveWindowId] = useState(0)
 
-  useEffect(() => {
-    console.log("registering storage handler")
-    chrome.storage.onChanged.addListener((changes, namespace) => {
-      for (var key in changes) {
-        var change = changes[key]
-        if (key == "tabTimeLine") {
-          if (change.oldValue.length != change.newValue) {
-            setTabCount(change.newValue.length)
-          }
-          setTabTimeLine(change.newValue)
-        }
-        if (key == "windowIds") {
-          setWindowCount(change.newValue.size)
-        }
-        if (key == "tabs") {
-          setTabData(change.newValue)
-        }
-        console.log(
-          'Storage key "%s" in namespace "%s" changed. ' +
-          'Old value was "%s", new value is "%s".',
-          key,
-          namespace,
-          change.oldValue,
-          change.newValue);
-      }
-    })
-  }, [])
+  // useEffect(() => {
+  //   console.log("registering storage handler")
+  //   chrome.storage.onChanged.addListener((changes, namespace) => {
+  //     for (var key in changes) {
+  //       var change = changes[key]
+  //       if (key == "tabTimeLine") {
+  //         if (change.oldValue.length != change.newValue) {
+  //           setTabCount(change.newValue.length)
+  //         }
+  //         setTabTimeLine(change.newValue)
+  //       }
+  //       if (key == "windowIds") {
+  //         setWindowCount(change.newValue.size)
+  //       }
+  //       if (key == "tabs") {
+  //         setTabData(change.newValue)
+  //       }
+  //       console.log(
+  //         'Storage key "%s" in namespace "%s" changed. ' +
+  //         'Old value was "%s", new value is "%s".',
+  //         key,
+  //         namespace,
+  //         change.oldValue,
+  //         change.newValue);
+  //     }
+  //   })
+  // }, [])
 
   // Initial load
   useEffect(() => {
@@ -124,11 +134,43 @@ function Popup() {
       setActiveWindowId(window.id)
     })
     chrome.storage.local.get((data) => {
-      setWindowCount(Object.keys(data.windowIds).length)
-      setTabCount(data.tabTimeLine.length)
+      let windows = new Proxy({}, DefaultObjectKey)
+      let tabs = new Proxy({}, DefaultObjectKey)
+      let tabTL = new IDTimeline()
+
+      for (const [key, value] of Object.entries(data)) {
+        let prefix = key.substring(0, 2)
+        let id = parseInt(key.substring(2))
+        switch (prefix) {
+          case "ta":
+            tabs[id].lastActive = value
+            tabTL.add(id, value)
+            break
+          case "tc":
+            tabs[id].created = value
+            break
+          case "ti":
+            tabs[id].info = value
+            break
+          case "wa":
+            windows[id].lastActive = value
+            break
+          case "wc":
+            windows[id].created = value
+            break
+          case "wi":
+            windows[id].info = value
+            break
+          default:
+            console.log(`ERROR: unhandled storage event prefix: ${prefix}`)
+        }
+      }
+      setWindowCount(Object.keys(windows).length)
+      setTabCount(Object.keys(tabs).length)
+      setTabTimeLine(tabTL)
       // console.log("useEffect data:")
       // console.log(data)
-      setTabData(data.tabs)
+      setTabData(tabs)
     })
   }, [])
 
