@@ -1,277 +1,125 @@
 console.log("background script ran!")
 
-// Database Model
-// This approach avoids the read/mod/write model since it creates race
-// conditions with chrome.storage.local and the chrome browser events.
-// The "#" sign means the tab or window number.
+// Storage Model
 //
-// The only required background script data model is the last activated
-// and created info, the rest could be handled by the popup window.
+// The background script monitors the window and tab states and updates
+// storage.local with new info.  To avoid complex objects, the script writes
+// a flat structure to storage, with a key for each date type, for example:
+// "wi123" - Window info for windowId 123
+// "wc123" - Window created timestamp for windowId 123
+// "wa123" - Window last accessed timestamp for windowId 123
+// "ti321" - Tab info for tabId 321
+// "tc321" - Tab created timestamp for tabId 321
+// "ta321" - Tab last accessed timestamp for tabId 321
 //
-// Tab info is stored as its chrome event type, with the most recent
-// data stored.
-// tab#: TabInfo(Chrome)
-//
-// Last activated info.
-// act#: {
-//      lastActivated: int,
-//      info: ActivatedInfo(Chrome)
-// }
-//
-// Tab created timestamp.
-// tabcreated#: {
-//      created: int
-// }
-//
-// Window info.
-// win#: WindowInfo(Chrome)
-//
-// The active window ID.
-// activeWindowId: Number
-
-// tabs: {tabId: TabData}
-// TabData: {
-//      tabInfo: TabInfo(Chrome),
-//      tabLastActivated: int,
-//      tabCreated: int
-// }
-// tabTimeline: [tabId, tabId, ...]
-// windowIds: {windowId: true} // json "set"
-// activeWindowId: Number // the active window Id
-
-const dbWriteLockBuf = new SharedArrayBuffer(4)
-const dbWriteLock = new Uint8Array(dbWriteLockBuf)
-
-dbWriteLock[0] = 0
-dbWriteLock[1] = 0
-dbWriteLock[2] = 0
-dbWriteLock[3] = 0
-
-/**
- * forceLock attempts to spinlock to acquire the lock for maxWAit milliseconds, and
- * after that it assumes the lock regardless.  This favors progress over consistency
- * with a "reasonable effort" locking model.
- * @param {Number} maxWait Maximum time in ms to wait for the lock before acquiring the lock.
- * @returns {Boolean}    true if lock was acquired without forcing, false if the timeout was hit.
- */
-function forceLock(maxWait=2000) {
-    let t0 = window.performance.now()
-    let timeout = false
-    let ret = 1
-    // while (0 != Atomics.compareExchange(dbWriteLock, 0, 0, 1)) {
-    while (ret != 0) {
-        ret = Atomics.compareExchange(dbWriteLock, 0, 0, 1)
-        if (window.performance.now() - t0 >= maxWait) {
-            timeout = true
-            console.log(`forceLock timed out, ret = ${ret}`)
-            break
-        }
-        sleep(1)
-    }
-    let tl = window.performance.now() - t0
-    console.log(`forceLock took ${tl} ms`)
-    return !timeout
-}
-
-/**
- * unlock releases the lock, regardless of what thread owns it.
- */
-function unlock() {
-    console.log("unlocking")
-    Atomics.store(dbWriteLock, 0, 0)
-}
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
+// This uses a write-only mechanism to avoid the read/mod/write races that
+// arise with multiple events firing, and issues with Chrome preempting
+// an event handler in the middle of its "mod" state with another
+// read/mod/write event handler.
 
 chrome.runtime.onInstalled.addListener(async () => {
     console.log("onInstalled called!")
-    // chrome.storage.local.set({tabs: {}, tabTimeLine: [], windowIds: {}}, function () {
-    //     console.log("Reset storage.")
-    // })
 
-    let data = {
-        tabs: {},
-        tabTimeLine: [],
-        windowIds: {},
-        activeWindowId: null,
-    }
+    chrome.storage.local.clear()
 
     // Scan existing tabs...
-    await browser.windows.getAll().then(async (windows) => {
+    chrome.windows.getAll((windows) => {
         console.log("browser promise api")
         console.log(windows)
 
-        await Promise.all(
-            Object.values(windows).map(async (window) => {
-                console.log(`querying window ${window.id}`)
-                await browser.tabs.query({windowId: window.id}).then(tabs => {
-                    let ts = Date.now()
-                    console.log(data)
-                    data.windowIds[window.id] = true
-                    for (const tab of Object.values(tabs)) {
-                        let tInfo = {
-                            tabInfo: tab,
-                            tabCreated: ts,
-                            tabLastActivated: ts,
-                        }
-                        data.tabTimeLine.push(tab.id)
-                        data.tabs[tab.id] = tInfo
-                    }
+        Object.values(windows).map(async (window) => {
+            console.log(`querying window ${window.id}`)
+            let wts = Date.now()
+            let wWrite = {[`wc${window.id}`]: wts, [`wa${window.id}`]: wts, [`wi${window.id}`]: window}
+            chrome.storage.local.set(wWrite)
+            chrome.tabs.query({windowId: window.id}, (tabs) => {
+                let ts = Date.now()
+                let tWrite = {}
+                console.log(tabs)
+                for (const tab of Object.values(tabs)) {
+                    tWrite[[`tc${tab.id}`]] = ts
+                    tWrite[[`ta${tab.id}`]] = ts
+                    tWrite[[`ti${tab.id}`]] = tab
+                }
+                chrome.storage.local.set(tWrite, () => {
+                    console.log(`Wrote onInstalled tabs for window ${window.id}`)
                 })
-                console.log(`done awaiting querying window ${window.id}`)
             })
-        )
-    })
-
-    console.log("writing data to storage")
-    console.log(data)
-    // if (!forceLock()) {
-    //     console.log("forceLock timed out, ignoring lock")
-    // }
-    // await browser.storage.local.set(data, () => {
-    await browser.storage.local.set(data).then(() => {
-        // unlock()
-        let tc = Object.keys(data.tabs).length
-        let wc = Object.keys(data.windowIds).length
-        console.log(`Wrote loaded tabs: tab count = ${tc}, window count = ${wc}`)
-    })
-})
-
-chrome.tabs.onCreated.addListener(async (tab) => {
-    console.log("onCreated called @ " + Date.now())
-    let ts = Date.now()
-    let tInfo = {
-        tabInfo: tab,
-        tabCreated: ts,
-        tabLastActivated: ts,
-    }
-    // if (!forceLock()) {
-    //     console.log("forceLock timed out, ignoring lock")
-    // }
-    await browser.storage.local.get().then(async (data) => {
-        if (data.tabs.hasOwnProperty(tab.id)) {
-            // unlock()
-            return
-        }
-        data.tabTimeLine.push(tab.id)
-        data.tabs[tab.id] = tInfo
-        await browser.storage.local.set(data).then(() => {
-            // unlock()
-            console.log("Wrote created tab " + tab.id)
         })
     })
 })
 
-chrome.tabs.onActivated.addListener(async (activeInfo) => {
+chrome.tabs.onCreated.addListener((tab) => {
+    console.log("onCreated called @ " + Date.now())
+    console.log(tab)
+    let ts = Date.now()
+    let tWrite = {}
+    tWrite[[`tc${tab.id}`]] = ts
+    tWrite[[`ta${tab.id}`]] = ts
+    tWrite[[`ti${tab.id}`]] = tab
+    chrome.storage.local.set(tWrite, () => {
+        console.log("Wrote created tab " + tab.id)
+    })
+})
+
+chrome.tabs.onActivated.addListener((activeInfo) => {
     console.log("onActivated called @ " + Date.now())
     console.log(activeInfo)
-    // if (!forceLock()) {
-    //     console.log("forceLock timed out, ignoring lock")
-    // }
-    browser.storage.local.get().then(async (data) => {
-        let tInfo = data.tabs[activeInfo.tabId]
-        if (!tInfo) {
-            return
-        }
-        tInfo.tabLastActivated = Date.now()
-        let tabIdIndex = data.tabTimeLine.indexOf(activeInfo.tabId)
-        if (tabIdIndex != -1) {
-            data.tabTimeLine.splice(tabIdIndex, 1)
-        }
-        data.tabTimeLine.push(activeInfo.tabId)
-        browser.storage.local.set(data).then(() => {
-            // unlock()
-            console.log("Wrote activated tab " + activeInfo.tabId)
-        })
+
+    chrome.storage.local.set({[`ta${activeInfo.tabId}`]: Date.now()}, () => {
+        console.log(`Wrote activated tab ${activeInfo.tabId}`)
     })
 })
 
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     console.log("onUpdate called!")
     console.log(tabId)
     console.log(changeInfo)
     console.log(tab)
 
-    // if (!forceLock()) {
-    //     console.log("forceLock timed out, ignoring lock")
-    // }
-    browser.storage.local.get().then(async (data) => {
-        if (!data.tabs.hasOwnProperty(tabId)) {
-            data.tabTimeLine.push(tab.id)
-            let ts = Date.now()
-            let tInfo = {
-                tabInfo: tab,
-                tabCreated: ts,
-                tabLastActivated: ts,
-            }
-            data.tabs[tabId] = tInfo
-        } else {
-            data.tabs[tabId].tabInfo = tab
-        }
-        browser.storage.local.set(data).then(() => {
-            // unlock()
-            console.log("Wrote updated tab " + tabId)
-        })
+    let tWrite = {}
+    tWrite[[`ti${tab.id}`]] = tab
+    chrome.storage.local.set(tWrite, () => {
+        console.log(`Wrote updated tab ${tab.id}`)
     })
 })
 
-chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
+chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
     console.log("onRemoved called!")
     console.log(tabId)
     console.log(removeInfo)
 
-    // if (!forceLock()) {
-    //     console.log("forceLock timed out, ignoring lock")
-    // }
-    browser.storage.local.get().then(async (data) => {
-        delete data.tabs[tabId]
-        let tabIdIndex = data.tabTimeLine.indexOf(tabId)
-        if (tabIdIndex != -1) {
-            data.tabTimeLine.splice(tabIdIndex, 1)
-        }
-        browser.storage.local.set(data).then(() => {
-            // unlock()
-            console.log("Wrote removed tab " + tabId)
-        })
+    let removeKeys = [`ti${tabId}`, `ta${tabId}`, `tc${tabId}`]
+    chrome.storage.local.remove(removeKeys, () => {
+        console.log(`Removed tab ${tabId}`)
     })
 })
 
-chrome.windows.onCreated.addListener(async (window) => {
+chrome.windows.onCreated.addListener((window) => {
     console.log("window.onCreated called @ " + Date.now())
     console.log(window.id)
-    // if (!forceLock()) {
-    //     console.log("forceLock timed out, ignoring lock")
-    // }
-    browser.storage.local.get(["windowIds"]).then(async (data) => {
-        data.windowIds[window.id] = true
-        browser.storage.local.set({"windowIds": data.windowIds}).then(() => {
-            // unlock()
-            console.log(`Added windowId ${window.id}`)
-        })
+
+    let wts = Date.now()
+    let wWrite = {[`wc${window.id}`]: wts, [`wa${window.id}`]: wts, [`wi${window.id}`]: window}
+    chrome.storage.local.set(wWrite, () => {
+        console.log(`Window created: ${window.id}`)
     })
 })
 
-chrome.windows.onRemoved.addListener(async (windowId) => {
-    console.log("window.onCreated called @ " + Date.now())
+chrome.windows.onRemoved.addListener((windowId) => {
+    console.log("window.onRemoved called @ " + Date.now())
     console.log(window.id)
-    // if (!forceLock()) {
-    //     console.log("forceLock timed out, ignoring lock")
-    // }
-    browser.storage.local.get(["windowIds"]).then(async (data) => {
-        data.windowIds[window.id] = true
-        browser.storage.local.set({"windowIds": data.windowIds}).then(() => {
-            // unlock()
-            console.log(`Added windowId ${window.id}`)
-        })
+
+    let removeKeys = [`wc${window.id}`, `wa${window.id}`, `wi${window.id}`]
+    chrome.storage.local.remove(removeKeys, () => {
+        console.log(`Window removed: ${windowId}`)
     })
 })
 
-chrome.windows.onFocusChanged.addListener(async (windowId) => {
+chrome.windows.onFocusChanged.addListener((windowId) => {
     console.log("window.onFocusChanged called @ " + Date.now())
     console.log(windowId)
-    browser.storage.local.set({"activeWindowId": windowId}).then(() => {
-        console.log(`Wrote windowId ${windowId}`)
+    chrome.storage.local.set({[`wa${windowId}`]: Date.now()}, () => {
+        console.log(`Window activated set for ${windowId}`)
     })
 })
