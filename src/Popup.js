@@ -32,6 +32,7 @@ function TabButtons(props) {
   function handleCloseClick(e) {
     e.preventDefault()
     console.log('The close button was clicked')
+    chrome.tabs.remove(tab.id)
   }
 
   return (
@@ -64,9 +65,13 @@ function TabLine(props) {
     favIconUrl = "chrome://favicon/" + tab.favIconUrl
   }
 
-  // <div windowId={tab.windowId} tabId={tab.tabId} className="TabLine"></div>
+  function navigateToTab(e) {
+    chrome.tabs.update(tab.id, {active: true})
+    chrome.windows.update(tab.windowId, {focused: true})
+  }
+
   return (
-    <div className="TabLine">
+    <div className="TabLine" onClick={navigateToTab}>
       <div>
         <img className="TabLine-favicon" alt="icon" src={favIconUrl}></img>
       </div>
@@ -77,9 +82,33 @@ function TabLine(props) {
 }
 
 function TabList(props) {
-  const tabs = Object.values(props.tabData)
+
+  const [displayList, setDisplayList] = useState([])
+
+  let lastTimeline = null
+
+  useEffect(() => {
+    if (props.tabTimeline !== lastTimeline) {
+      // recalc display list
+      console.log("useEffect tabData=")
+      console.log(props.tabData)
+      let dList  = []
+      lastTimeline = props.tabTimeline
+      for (let i = lastTimeline.length - 1; i >= 0; i--) {
+        let tabId = lastTimeline[i]
+        // if (props.tabData.hasOwnProperty(tabId)) {
+        if (tabId in props.tabData) {
+          dList.push(props.tabData[tabId])
+        }
+      }
+      console.log("dList=")
+      console.log(dList)
+      setDisplayList(dList)
+    }
+  }, [props.tabTimeline, props.tabData])
+
   return (
-    tabs.map((tab) => TabLine({tab: tab}))
+    displayList.map((tab) => TabLine({tab: tab}))
   );
 }
 
@@ -96,7 +125,7 @@ function Popup() {
 
   const [tabCount, setTabCount] = useState(0)
   const [windowCount, setWindowCount] = useState(0)
-  const [tabTimeLine, setTabTimeLine] = useState([])
+  const [tabTimeline, setTabTimeline] = useState([])
   const [tabData, setTabData] = useState({})
   const [activeWindowId, setActiveWindowId] = useState(0)
 
@@ -105,7 +134,7 @@ function Popup() {
   //   chrome.storage.onChanged.addListener((changes, namespace) => {
   //     for (var key in changes) {
   //       var change = changes[key]
-  //       if (key == "tabTimeLine") {
+  //       if (key == "tabTimeline") {
   //         if (change.oldValue.length != change.newValue) {
   //           setTabCount(change.newValue.length)
   //         }
@@ -167,9 +196,13 @@ function Popup() {
       }
       setWindowCount(Object.keys(windows).length)
       setTabCount(Object.keys(tabs).length)
-      setTabTimeLine(tabTL)
+      console.log("setTabTimeLine=>")
+      console.log(tabTL.timeline)
+      setTabTimeline(tabTL.timeline)
       // console.log("useEffect data:")
       // console.log(data)
+      console.log("tabs=")
+      console.log(tabs)
       setTabData(tabs)
     })
   }, [])
@@ -193,7 +226,7 @@ function Popup() {
         </div>
       </header>
       <div>
-        <TabList tabData={tabData} tabTimeLine={tabTimeLine} activeWindowId={activeWindowId}/>
+        <TabList tabData={tabData} tabTimeline={tabTimeline} activeWindowId={activeWindowId}/>
       </div>
     </div>
   );
