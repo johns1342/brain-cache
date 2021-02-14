@@ -1,6 +1,7 @@
 /* global chrome */
 // import logo from './logo.svg';
 // import logo from './icons/gather_one.svg';
+import gatherOneIcon from './icons/gather_one.svg';
 import gatherAllIcon from './icons/gather_all.svg';
 import closeIcon from './icons/close.svg';
 import infoIcon from './icons/info.svg';
@@ -8,6 +9,13 @@ import './Popup.css';
 // import testData from "./testData.json"
 import { IDTimeline } from "./idtimeline"
 import { useCallback, useEffect, useState } from 'react';
+
+
+let openedWindowId = null
+
+chrome.windows.getCurrent((window) => {
+  openedWindowId = window.id
+})
 
 function TabButtons(props) {
 
@@ -29,6 +37,12 @@ function TabButtons(props) {
     [tab.windowId, tab.tabId],
   );
 
+  function handleGatherClick(e) {
+    e.preventDefault()
+    console.log("The gather button was clicked")
+    chrome.tabs.move(tab.id, {windowId: openedWindowId, index: -1})
+  }
+
   function handleCloseClick(e) {
     e.preventDefault()
     console.log('The close button was clicked')
@@ -37,6 +51,13 @@ function TabButtons(props) {
 
   return (
     <div className="TabButtons">
+      { tab.windowId !== openedWindowId &&
+      <input
+        className="TabButtons-icon" type="image" alt="gather"
+        src={gatherOneIcon}
+        onClick={handleGatherClick}
+      />
+      }
       <input
         className="TabButtons-icon" type="image" alt="close"
         src={closeIcon}
@@ -71,11 +92,11 @@ function TabLine(props) {
   }
 
   return (
-    <div className="TabLine" onClick={navigateToTab}>
-      <div>
+    <div className="TabLine">
+      <div onClick={navigateToTab}>
         <img className="TabLine-favicon" alt="icon" src={favIconUrl}></img>
       </div>
-      <div className="TabLine-title">{tab.title}</div>
+      <div className="TabLine-title" onClick={navigateToTab}>{tab.title}</div>
       <TabButtons tab={tab}/>
     </div>
   );
@@ -129,33 +150,82 @@ function Popup() {
   const [tabData, setTabData] = useState({})
   const [activeWindowId, setActiveWindowId] = useState(0)
 
-  // useEffect(() => {
-  //   console.log("registering storage handler")
-  //   chrome.storage.onChanged.addListener((changes, namespace) => {
-  //     for (var key in changes) {
-  //       var change = changes[key]
-  //       if (key == "tabTimeline") {
-  //         if (change.oldValue.length != change.newValue) {
-  //           setTabCount(change.newValue.length)
-  //         }
-  //         setTabTimeLine(change.newValue)
-  //       }
-  //       if (key == "windowIds") {
-  //         setWindowCount(change.newValue.size)
-  //       }
-  //       if (key == "tabs") {
-  //         setTabData(change.newValue)
-  //       }
-  //       console.log(
-  //         'Storage key "%s" in namespace "%s" changed. ' +
-  //         'Old value was "%s", new value is "%s".',
-  //         key,
-  //         namespace,
-  //         change.oldValue,
-  //         change.newValue);
-  //     }
-  //   })
-  // }, [])
+  let windows = new Proxy({}, DefaultObjectKey)
+  let tabs = new Proxy({}, DefaultObjectKey)
+  let tabTL = new IDTimeline()
+
+  useEffect(() => {
+    console.log("registering storage handler")
+    chrome.storage.onChanged.addListener((changes, namespace) => {
+      console.log("changes and namespace")
+      console.log(changes)
+      console.log(namespace)
+      let tabsUpdated = false
+      let windowsUpdated = false
+      for (const [key, change] of Object.entries(changes)) {
+        let prefix = key.substring(0, 2)
+        let id = parseInt(key.substring(2))
+
+        if (!("newValue" in change)) {
+          if (prefix[0] == "t" && id in tabs) {
+            tabTL.remove(id)
+            delete tabs[id]
+            tabsUpdated = true
+          } else if (prefix[0] == "w" && id in windows) {
+            delete windows[id]
+            windowsUpdated = true
+          }
+        } else {
+          switch (prefix) {
+            case "ta":
+              tabs[id].lastActive = change.newValue
+              if ("oldValue" in change) {
+                tabTL.update(id, change.newValue)
+              } else {
+                tabTL.add(id, change.newValue)
+              }
+              tabsUpdated = true
+              break
+            case "tc":
+              tabs[id].created = change.newValue
+              tabsUpdated = true
+              break
+            case "ti":
+              tabs[id].info = change.newValue
+              tabsUpdated = true
+              break
+            case "tt":
+              tabs[id].info.windowId = change.newValue.newWindowId
+              tabsUpdated = true
+              break
+            case "wa":
+              windows[id].lastActive = change.newValue
+              windowsUpdated = true
+              break
+            case "wc":
+              windows[id].created =change.newValue
+              windowsUpdated = true
+              break
+            case "wi":
+              windows[id].info = change.newValue
+              windowsUpdated = true
+              break
+            default:
+              console.log(`ERROR: unhandled storage event prefix: ${prefix}`)
+          }
+        }
+      }
+      if (tabsUpdated) {
+        setTabCount(Object.keys(tabs).length)
+        setTabTimeline(tabTL.timeline)
+        tabs = {...tabs} // trigger rerender
+        setTabData(tabs)
+      }
+      if (windowsUpdated) {
+        setWindowCount(Object.keys(windows).length)
+      }
+    })
+  }, [])
 
   // Initial load
   useEffect(() => {
@@ -163,10 +233,7 @@ function Popup() {
       setActiveWindowId(window.id)
     })
     chrome.storage.local.get((data) => {
-      let windows = new Proxy({}, DefaultObjectKey)
-      let tabs = new Proxy({}, DefaultObjectKey)
-      let tabTL = new IDTimeline()
-
+      let attaches = []
       for (const [key, value] of Object.entries(data)) {
         let prefix = key.substring(0, 2)
         let id = parseInt(key.substring(2))
@@ -181,6 +248,9 @@ function Popup() {
           case "ti":
             tabs[id].info = value
             break
+          case "tt":
+            attaches.push({tabId: id, attachInfo: value})
+            break
           case "wa":
             windows[id].lastActive = value
             break
@@ -194,13 +264,18 @@ function Popup() {
             console.log(`ERROR: unhandled storage event prefix: ${prefix}`)
         }
       }
+      for (let i = 0; i < attaches.length; i++) {
+        let tid = attaches[i].tabId
+        let wid = attaches[i].attachInfo.newWindowId
+        if (tid in tabs && wid != tabs[tid].info.windowId) {
+          tabs[tid].info.windowId = wid
+        }
+      }
       setWindowCount(Object.keys(windows).length)
       setTabCount(Object.keys(tabs).length)
       console.log("setTabTimeLine=>")
       console.log(tabTL.timeline)
       setTabTimeline(tabTL.timeline)
-      // console.log("useEffect data:")
-      // console.log(data)
       console.log("tabs=")
       console.log(tabs)
       setTabData(tabs)

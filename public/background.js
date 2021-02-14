@@ -71,6 +71,15 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
     })
 })
 
+chrome.tabs.onAttached.addListener((tabId, attachInfo) => {
+    console.log("onAttached called @ " + Date.now())
+    console.log(attachInfo)
+
+    chrome.storage.local.set({[`tt${tabId}`]: attachInfo}, () => {
+        console.log(`Wrote attached tab ${tabId} to window ${attachInfo.windowId}`)
+    })
+})
+
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     console.log("onUpdate called!")
     console.log(tabId)
