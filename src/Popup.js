@@ -19,11 +19,7 @@ chrome.windows.getCurrent((window) => {
 
 function TabButtons(props) {
 
-  // const windowId = props.windowId
-  // const tabId = props.tabId
   const tab = props.tab
-
-  // console.log(props)
 
   // function handleInfoClick(windowId, tabId) {
   //   // e.preventDefault()
@@ -39,13 +35,11 @@ function TabButtons(props) {
 
   function handleGatherClick(e) {
     e.preventDefault()
-    console.log("The gather button was clicked")
     chrome.tabs.move(tab.id, {windowId: openedWindowId, index: -1})
   }
 
   function handleCloseClick(e) {
     e.preventDefault()
-    console.log('The close button was clicked')
     chrome.tabs.remove(tab.id)
   }
 
@@ -75,12 +69,8 @@ function TabButtons(props) {
 }
 
 function TabLine(props) {
-  console.log("props:")
-  console.log(props)
   const tab = props.tab.info
   let favIconUrl = null
-  console.log("TabLine:")
-  console.log(tab)
 
   if (tab.favIconUrl) {
     favIconUrl = tab.favIconUrl
@@ -105,34 +95,6 @@ function TabLine(props) {
 }
 
 function TabList(props) {
-
-  // const [displayList, setDisplayList] = useState([])
-
-  // let lastTimeline = null
-
-  // useEffect(() => {
-  //   // if (props.tabTimeline !== lastTimeline) {
-  //     // recalc display list
-  //     console.log("useEffect tabData=")
-  //     console.log(props.tabData)
-  //     let dList  = []
-  //     let lastTimeline = props.tabTimeline
-  //     let searchValue = props.searchValue
-  //     for (let i = lastTimeline.length - 1; i >= 0; i--) {
-  //       let tabId = lastTimeline[i]
-  //       // if (props.tabData.hasOwnProperty(tabId)) {
-  //       if (tabId in props.tabData) {
-  //         if (searchValue === "" || props.tabData[tabId].searchValue.includes(searchValue)) {
-  //           dList.push(props.tabData[tabId])
-  //         }
-  //       }
-  //     }
-  //     console.log("dList=")
-  //     console.log(dList)
-  //     setDisplayList(dList)
-  //   // }
-  // }, [props.tabTimeline, props.tabData, props.searchValue])
-
   return (
     props.displayTabs.map((tab) => TabLine({tab: tab}))
   );
@@ -162,11 +124,7 @@ function Popup() {
 
   // Event updates
   useEffect(() => {
-    console.log("registering storage handler")
     chrome.storage.onChanged.addListener((changes, namespace) => {
-      console.log("changes and namespace")
-      console.log(changes)
-      console.log(namespace)
       let tabsUpdated = false
       let windowsUpdated = false
       for (const [key, change] of Object.entries(changes)) {
@@ -281,42 +239,26 @@ function Popup() {
       }
       setWindowCount(Object.keys(windows).length)
       setTabCount(Object.keys(tabs).length)
-      console.log("setTabTimeLine=>")
-      console.log(tabTL.timeline)
       setTabTimeline(tabTL.timeline)
-      console.log("tabs=")
-      console.log(tabs)
       setTabData(tabs)
     })
   }, [])
 
   useEffect(() => {
-    // if (props.tabTimeline !== lastTimeline) {
-      // recalc display list
-      // console.log("useEffect tabData=")
-      // console.log(tabData)
-      let dList  = []
-      // let lastTimeline = tabTimeline
-      // let searchValue = props.searchValue
-      for (let i = tabTimeline.length - 1; i >= 0; i--) {
-        let tabId = tabTimeline[i]
-        // if (props.tabData.hasOwnProperty(tabId)) {
-        if (tabId in tabData) {
-          if (searchValue === "" || tabData[tabId].searchValue.includes(searchValue)) {
-            dList.push(tabData[tabId])
-          }
+    let dList  = []
+    for (let i = tabTimeline.length - 1; i >= 0; i--) {
+      let tabId = tabTimeline[i]
+      if (tabId in tabData) {
+        if (searchValue === "" || tabData[tabId].searchValue.includes(searchValue)) {
+          dList.push(tabData[tabId])
         }
       }
-      console.log("dList=")
-      console.log(dList)
-      setDisplayTabs(dList)
-    // }
+    }
+    setDisplayTabs(dList)
   }, [tabTimeline, tabData, searchValue])
 
   function handleGatherAllClick(e) {
     e.preventDefault()
-    console.log("The gather all button was clicked")
-    // chrome.tabs.move(tab.id, {windowId: openedWindowId, index: -1})
     let moveTabIds = []
     for (let i = 0, lenDT = displayTabs.length; i < lenDT; i++) {
       if (displayTabs[i].windowId != openedWindowId) {
@@ -327,9 +269,6 @@ function Popup() {
   }
 
   function searchBoxOnInput(e) {
-    console.log("searchBoxOnInput event:")
-    console.log(e)
-    console.log(e.target.value)
     setSearchValue(e.target.value)
   }
 
