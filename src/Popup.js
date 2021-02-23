@@ -4,7 +4,7 @@
 import gatherOneIcon from './icons/gather_one.svg';
 import gatherAllIcon from './icons/gather_all.svg';
 import closeIcon from './icons/close.svg';
-import infoIcon from './icons/info.svg';
+// import infoIcon from './icons/info.svg';
 import './Popup.css';
 // import testData from "./testData.json"
 import { IDTimeline } from "./idtimeline"
@@ -25,17 +25,17 @@ function TabButtons(props) {
 
   // console.log(props)
 
-  function handleInfoClick(windowId, tabId) {
-    // e.preventDefault()
-    console.log('The info button was clicked for window ' + windowId + ', ' + tabId)
-  }
+  // function handleInfoClick(windowId, tabId) {
+  //   // e.preventDefault()
+  //   console.log('The info button was clicked for window ' + windowId + ', ' + tabId)
+  // }
 
-  const myHandleInfoClick = useCallback(
-    () => {
-      handleInfoClick(tab.windowId, tab.tabId);
-    },
-    [tab.windowId, tab.tabId],
-  );
+  // const myHandleInfoClick = useCallback(
+  //   () => {
+  //     handleInfoClick(tab.windowId, tab.tabId);
+  //   },
+  //   [tab.windowId, tab.tabId],
+  // );
 
   function handleGatherClick(e) {
     e.preventDefault()
@@ -54,20 +54,22 @@ function TabButtons(props) {
       { tab.windowId !== openedWindowId &&
       <input
         className="TabButtons-icon" type="image" alt="gather"
+        title="Move to the current window."
         src={gatherOneIcon}
         onClick={handleGatherClick}
       />
       }
       <input
         className="TabButtons-icon" type="image" alt="close"
+        title="Close this tab."
         src={closeIcon}
         onClick={handleCloseClick}
       />
-      <input
+      {/* <input
         className="TabButtons-icon" type="image" alt="info"
         src={infoIcon}
         onClick={myHandleInfoClick}
-      />
+      /> */}
     </div>
   );
 }
@@ -104,32 +106,35 @@ function TabLine(props) {
 
 function TabList(props) {
 
-  const [displayList, setDisplayList] = useState([])
+  // const [displayList, setDisplayList] = useState([])
 
-  let lastTimeline = null
+  // let lastTimeline = null
 
-  useEffect(() => {
-    if (props.tabTimeline !== lastTimeline) {
-      // recalc display list
-      console.log("useEffect tabData=")
-      console.log(props.tabData)
-      let dList  = []
-      lastTimeline = props.tabTimeline
-      for (let i = lastTimeline.length - 1; i >= 0; i--) {
-        let tabId = lastTimeline[i]
-        // if (props.tabData.hasOwnProperty(tabId)) {
-        if (tabId in props.tabData) {
-          dList.push(props.tabData[tabId])
-        }
-      }
-      console.log("dList=")
-      console.log(dList)
-      setDisplayList(dList)
-    }
-  }, [props.tabTimeline, props.tabData])
+  // useEffect(() => {
+  //   // if (props.tabTimeline !== lastTimeline) {
+  //     // recalc display list
+  //     console.log("useEffect tabData=")
+  //     console.log(props.tabData)
+  //     let dList  = []
+  //     let lastTimeline = props.tabTimeline
+  //     let searchValue = props.searchValue
+  //     for (let i = lastTimeline.length - 1; i >= 0; i--) {
+  //       let tabId = lastTimeline[i]
+  //       // if (props.tabData.hasOwnProperty(tabId)) {
+  //       if (tabId in props.tabData) {
+  //         if (searchValue === "" || props.tabData[tabId].searchValue.includes(searchValue)) {
+  //           dList.push(props.tabData[tabId])
+  //         }
+  //       }
+  //     }
+  //     console.log("dList=")
+  //     console.log(dList)
+  //     setDisplayList(dList)
+  //   // }
+  // }, [props.tabTimeline, props.tabData, props.searchValue])
 
   return (
-    displayList.map((tab) => TabLine({tab: tab}))
+    props.displayTabs.map((tab) => TabLine({tab: tab}))
   );
 }
 
@@ -148,12 +153,14 @@ function Popup() {
   const [windowCount, setWindowCount] = useState(0)
   const [tabTimeline, setTabTimeline] = useState([])
   const [tabData, setTabData] = useState({})
-  const [activeWindowId, setActiveWindowId] = useState(0)
+  const [searchValue, setSearchValue] = useState("")
+  const [displayTabs, setDisplayTabs] = useState([])
 
   let windows = new Proxy({}, DefaultObjectKey)
   let tabs = new Proxy({}, DefaultObjectKey)
   let tabTL = new IDTimeline()
 
+  // Event updates
   useEffect(() => {
     console.log("registering storage handler")
     chrome.storage.onChanged.addListener((changes, namespace) => {
@@ -192,6 +199,8 @@ function Popup() {
               break
             case "ti":
               tabs[id].info = change.newValue
+              tabs[id].searchValue = tabs[id].info.title.toLowerCase() + "\t" + 
+                tabs[id].info.url.toLowerCase().replace(/^https?:\/\//, "")
               tabsUpdated = true
               break
             case "tt":
@@ -229,9 +238,6 @@ function Popup() {
 
   // Initial load
   useEffect(() => {
-    chrome.windows.getCurrent((window) => {
-      setActiveWindowId(window.id)
-    })
     chrome.storage.local.get((data) => {
       let attaches = []
       for (const [key, value] of Object.entries(data)) {
@@ -247,6 +253,8 @@ function Popup() {
             break
           case "ti":
             tabs[id].info = value
+            tabs[id].searchValue = value.title.toLowerCase() + "\t" + 
+              value.url.toLowerCase().replace(/^https?:\/\//, "")
             break
           case "tt":
             attaches.push({tabId: id, attachInfo: value})
@@ -282,26 +290,72 @@ function Popup() {
     })
   }, [])
 
+  useEffect(() => {
+    // if (props.tabTimeline !== lastTimeline) {
+      // recalc display list
+      // console.log("useEffect tabData=")
+      // console.log(tabData)
+      let dList  = []
+      // let lastTimeline = tabTimeline
+      // let searchValue = props.searchValue
+      for (let i = tabTimeline.length - 1; i >= 0; i--) {
+        let tabId = tabTimeline[i]
+        // if (props.tabData.hasOwnProperty(tabId)) {
+        if (tabId in tabData) {
+          if (searchValue === "" || tabData[tabId].searchValue.includes(searchValue)) {
+            dList.push(tabData[tabId])
+          }
+        }
+      }
+      console.log("dList=")
+      console.log(dList)
+      setDisplayTabs(dList)
+    // }
+  }, [tabTimeline, tabData, searchValue])
+
+  function handleGatherAllClick(e) {
+    e.preventDefault()
+    console.log("The gather all button was clicked")
+    // chrome.tabs.move(tab.id, {windowId: openedWindowId, index: -1})
+    let moveTabIds = []
+    for (let i = 0, lenDT = displayTabs.length; i < lenDT; i++) {
+      if (displayTabs[i].windowId != openedWindowId) {
+        moveTabIds.push(displayTabs[i].info.id)
+      }
+    }
+    chrome.tabs.move(moveTabIds, {windowId: openedWindowId, index: -1})
+  }
+
+  function searchBoxOnInput(e) {
+    console.log("searchBoxOnInput event:")
+    console.log(e)
+    console.log(e.target.value)
+    setSearchValue(e.target.value)
+  }
+
   return (
     <div className="Popup">
       <header className="Popup-header">
-        <div className="Result-counts">
-        {tabCount} tab{tabCount > 1 ? "s" : ""}, {windowCount} window{windowCount > 1 ? "s" : ""}
+        <div className="Popup-header-line">
+          <div className="Header-buttons">
+            <input type="image" className="Popup-button-icon" onClick={handleGatherAllClick}
+            title="Gather result tabs to this window" alt="G"
+            src={gatherAllIcon}
+            />
+          </div>
+          <div className="Result-counts">
+          {tabCount} tab{tabCount > 1 ? "s" : ""}, {windowCount} window{windowCount > 1 ? "s" : ""}
+          </div>
         </div>
         <div>
-          <input type="image" className="Popup-button-icon"
-          title="Gather result tabs to this window" alt="G"
-          src={gatherAllIcon}
-          />
-        </div>
-        <div>
-          <input type="text"
+          <input className="Search-text" autoFocus type="text" onInput={searchBoxOnInput}
           placeholder="Search Titles and URLs"
           />
         </div>
       </header>
       <div>
-        <TabList tabData={tabData} tabTimeline={tabTimeline} activeWindowId={activeWindowId}/>
+        {/* <TabList tabData={tabData} tabTimeline={tabTimeline} activeWindowId={activeWindowId} searchValue={searchValue}/> */}
+        <TabList displayTabs={displayTabs} />
       </div>
     </div>
   );

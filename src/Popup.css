@@ -1,3 +1,9 @@
+@import url("https://fonts.googleapis.com/css2?family=Varela+Round&display=swap");
+
+.Popup {
+  font-family: 'Varela Round', Arial, sans-serif;
+}
+
 body {
   width: 300px;
 }
@@ -13,11 +19,31 @@ body {
   /* color: white; */
 }
 
+.Popup-header-line {
+  display: flex;
+  justify-content: space-between;
+}
+
 .Popup-button-icon {
   height: 16px;
   width: 16px;
-  margin: 1px;
+  margin: 3px;
   vertical-align: middle;
+}
+
+/* .Header-buttons {
+  flex: 1;
+} */
+
+.Result-counts {
+  color:gray;
+}
+
+.Search-text {
+  font-size: 16px;
+  color:rgb(85, 85, 85);
+  min-width: 290px;
+  margin: 1px;
 }
 
 .TabButtons {
@@ -27,8 +53,12 @@ body {
 
 .TabButtons-icon {
   height: 16px;
+  /* height: 100%; */
   width: 16px;
-  margin: 1px;
+  margin-left: 1px;
+  margin-right: 1px;
+  margin-top: 0px;
+  margin-bottom: 0px;
   vertical-align: middle;
 }
 
@@ -36,8 +66,11 @@ body {
   display: flex;
   align-items: baseline;
   margin: 2px;
+  /* margin-top: 4px; */
+  height: 20;
   cursor: default;
   border-radius: 3px;
+  font-family: 'Varela Round', Arial, sans-serif;
 
   overflow: hidden;
   text-overflow: ellipsis;
@@ -67,6 +100,7 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
   overflow: hidden;
+  width: 100%;
 }
 
 .Popup-link {
