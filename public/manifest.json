@@ -1,11 +1,10 @@
 {
-    "name": "BrainCache",
-    "description": "BrainCache tab manager",
     "manifest_version": 2,
-    "version": "0.1.0",
+    "name": "BrainCache",
+    "description": "BrainCache is a simple to use Chrome-based tab manager (https://github.com/johns1342/brain-cache).",
+    "version": "0.3.0",
     "background": {
         "scripts": [
-            "browser-polyfill.js",
             "background.js"
         ],
         "persistent": false
@@ -14,5 +13,8 @@
         "default_popup": "popup.html"
     },
     "options_page": "options.html",
-    "permissions": ["storage", "tabs", "chrome://favicon/"]
+    "permissions": ["storage", "tabs", "chrome://favicon/"],
+    "icons": {
+        "16": "images/braincache16.png"
+    }
 }
