@@ -2,7 +2,7 @@
     "manifest_version": 2,
     "name": "BrainCache",
     "description": "BrainCache is a simple to use Chrome-based tab manager (https://github.com/johns1342/brain-cache).",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "background": {
         "scripts": [
             "background.js"

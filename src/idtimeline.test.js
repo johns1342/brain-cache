@@ -21,7 +21,14 @@ test("add two elements and update", () => {
     expect(tl.tl[0][1]).toBe(3)
     expect(tl.tl[1][1]).toBe(4)
 
-    tl.update(3, 65432)
+    tl.remove(3)
+    expect(tl.tl.length).toBe(1)
+    tl.add(3, 65432)
+    expect(tl.tl.length).toBe(2)
+    expect(tl.tl[0][1]).toBe(4)
+    expect(tl.tl[1][1]).toBe(3)
+
+    tl.update(3, 76543)
     expect(tl.tl.length).toBe(2)
     expect(tl.tl[0][1]).toBe(4)
     expect(tl.tl[1][1]).toBe(3)

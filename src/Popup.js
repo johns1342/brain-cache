@@ -4,11 +4,15 @@
 import gatherOneIcon from './icons/gather_one.svg';
 import gatherAllIcon from './icons/gather_all.svg';
 import closeIcon from './icons/close.svg';
+import sortByAccessedIcon from './icons/sort_by_accessed.svg';
+import sortByAlphaIcon from './icons/sort_by_alpha.svg';
 // import infoIcon from './icons/info.svg';
 import './Popup.css';
 // import testData from "./testData.json"
 import { IDTimeline } from "./idtimeline"
 import { useCallback, useEffect, useState } from 'react';
+import { IDAlpha } from './idalpha';
+// import InlineSVG from 'svg-inline-react';
 
 
 let openedWindowId = null
@@ -114,13 +118,16 @@ function Popup() {
   const [tabCount, setTabCount] = useState(0)
   const [windowCount, setWindowCount] = useState(0)
   const [tabTimeline, setTabTimeline] = useState([])
+  const [tabAlpha, setTabAlpha] = useState([])
   const [tabData, setTabData] = useState({})
   const [searchValue, setSearchValue] = useState("")
   const [displayTabs, setDisplayTabs] = useState([])
+  const [sortBy, setSortBy] = useState("alpha")
 
   let windows = new Proxy({}, DefaultObjectKey)
   let tabs = new Proxy({}, DefaultObjectKey)
   let tabTL = new IDTimeline()
+  let tabA = new IDAlpha()
 
   // Event updates
   useEffect(() => {
@@ -132,11 +139,12 @@ function Popup() {
         let id = parseInt(key.substring(2))
 
         if (!("newValue" in change)) {
-          if (prefix[0] == "t" && id in tabs) {
+          if (prefix[0] === "t" && id in tabs) {
             tabTL.remove(id)
+            tabA.remove(id)
             delete tabs[id]
             tabsUpdated = true
-          } else if (prefix[0] == "w" && id in windows) {
+          } else if (prefix[0] === "w" && id in windows) {
             delete windows[id]
             windowsUpdated = true
           }
@@ -159,6 +167,11 @@ function Popup() {
               tabs[id].info = change.newValue
               tabs[id].searchValue = tabs[id].info.title.toLowerCase() + "\t" + 
                 tabs[id].info.url.toLowerCase().replace(/^https?:\/\//, "")
+              if ("oldValue" in change) {
+                tabA.update(id, tabs[id].info.title)
+              } else {
+                tabA.add(id, tabs[id].info.title)
+              }
               tabsUpdated = true
               break
             case "tt":
@@ -185,6 +198,7 @@ function Popup() {
       if (tabsUpdated) {
         setTabCount(Object.keys(tabs).length)
         setTabTimeline(tabTL.timeline)
+        setTabAlpha(tabA.sorted)
         tabs = {...tabs} // trigger rerender
         setTabData(tabs)
       }
@@ -213,6 +227,7 @@ function Popup() {
             tabs[id].info = value
             tabs[id].searchValue = value.title.toLowerCase() + "\t" + 
               value.url.toLowerCase().replace(/^https?:\/\//, "")
+            tabA.add(id, value.title)
             break
           case "tt":
             attaches.push({tabId: id, attachInfo: value})
@@ -233,35 +248,51 @@ function Popup() {
       for (let i = 0; i < attaches.length; i++) {
         let tid = attaches[i].tabId
         let wid = attaches[i].attachInfo.newWindowId
-        if (tid in tabs && wid != tabs[tid].info.windowId) {
+        if (tid in tabs && wid !== tabs[tid].info.windowId) {
           tabs[tid].info.windowId = wid
         }
       }
       setWindowCount(Object.keys(windows).length)
       setTabCount(Object.keys(tabs).length)
       setTabTimeline(tabTL.timeline)
+      setTabAlpha(tabA.sorted)
       setTabData(tabs)
     })
   }, [])
 
   useEffect(() => {
     let dList  = []
-    for (let i = tabTimeline.length - 1; i >= 0; i--) {
-      let tabId = tabTimeline[i]
-      if (tabId in tabData) {
-        if (searchValue === "" || tabData[tabId].searchValue.includes(searchValue)) {
-          dList.push(tabData[tabId])
+    switch (sortBy) {
+      case "accessed":
+        console.log(`sb=accessed: tabTL.tl = ${tabTL.tl}`)
+        for (let i = tabTimeline.length - 1; i >= 0; i--) {
+          let tabId = tabTimeline[i]
+          if (tabId in tabData) {
+            if (searchValue === "" || tabData[tabId].searchValue.includes(searchValue)) {
+              dList.push(tabData[tabId])
+            }
+          }
         }
-      }
+        break
+      default: // alpha
+        console.log(`sb=accessed: tabA.al = ${tabA.al}`)
+        for (let i = 0; i < tabAlpha.length; i++) {
+          let tabId = tabAlpha[i]
+          if (tabId in tabData) {
+            if (searchValue === "" || tabData[tabId].searchValue.includes(searchValue)) {
+              dList.push(tabData[tabId])
+            }
+          }
+        }
     }
     setDisplayTabs(dList)
-  }, [tabTimeline, tabData, searchValue])
+  }, [tabTimeline, tabAlpha, tabData, searchValue, sortBy])
 
   function handleGatherAllClick(e) {
     e.preventDefault()
     let moveTabIds = []
     for (let i = 0, lenDT = displayTabs.length; i < lenDT; i++) {
-      if (displayTabs[i].windowId != openedWindowId) {
+      if (displayTabs[i].windowId !== openedWindowId) {
         moveTabIds.push(displayTabs[i].info.id)
       }
     }
@@ -270,6 +301,14 @@ function Popup() {
 
   function searchBoxOnInput(e) {
     setSearchValue(e.target.value)
+  }
+
+  function clickSortBy(e) {
+    if (sortBy == "alpha") {
+      setSortBy("accessed")
+    } else {
+      setSortBy("alpha")
+    }
   }
 
   return (
@@ -284,6 +323,23 @@ function Popup() {
           </div>
           <div className="Result-counts">
           {tabCount} tab{tabCount > 1 ? "s" : ""}, {windowCount} window{windowCount > 1 ? "s" : ""}
+          </div>
+          <div className="Header-buttons">
+            {sortBy === "accessed" && (
+              <input type="image" className="Popup-button-icon" onClick={clickSortBy}
+              title="Sorting by last accessed time" alt="S"
+              src={sortByAccessedIcon}
+              />
+            )}
+            {sortBy === "alpha" && (
+              <input type="image" className="Popup-button-icon" onClick={clickSortBy}
+              title="Sorting by title in alphabetic order" alt="S"
+              src={sortByAlphaIcon}
+              />
+            )}
+            {/* <InlineSVG src={require("svg-inline-loader?classPrefix!./icons/sort_by_accessed.svg")} /> */}
+            {/* <InlineSVG src={require("./icons/sort_by_accessed.svg")} /> */}
+            {/* require('svg-inline-loader?classPrefix!./logo_two.svg') */}
           </div>
         </div>
         <div>

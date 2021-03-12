@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="200px" height="200px" viewBox="0 0 200 200" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>Alpha</title>
+    <g id="SortByAlpha" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <rect id="Fill" x="0" y="-1" width="200" height="200" rx="30"></rect>
+        <rect id="Border" stroke="#000" stroke-width="10" x="5" y="5" width="190" height="190" rx="30"></rect>
+        <text id="Alpha" font-family="Helvetica-Bold, Helvetica" font-size="72" font-weight="bold" fill="#000">
+            <tspan x="74.5019531" y="83">A</tspan>
+            <tspan x="78.5097656" y="169">Z</tspan>
+        </text>
+    </g>
+</svg>
