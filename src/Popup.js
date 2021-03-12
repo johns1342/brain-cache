@@ -264,7 +264,6 @@ function Popup() {
     let dList  = []
     switch (sortBy) {
       case "accessed":
-        console.log(`sb=accessed: tabTL.tl = ${tabTL.tl}`)
         for (let i = tabTimeline.length - 1; i >= 0; i--) {
           let tabId = tabTimeline[i]
           if (tabId in tabData) {
@@ -275,7 +274,6 @@ function Popup() {
         }
         break
       default: // alpha
-        console.log(`sb=accessed: tabA.al = ${tabA.al}`)
         for (let i = 0; i < tabAlpha.length; i++) {
           let tabId = tabAlpha[i]
           if (tabId in tabData) {
@@ -304,7 +302,7 @@ function Popup() {
   }
 
   function clickSortBy(e) {
-    if (sortBy == "alpha") {
+    if (sortBy === "alpha") {
       setSortBy("accessed")
     } else {
       setSortBy("alpha")
